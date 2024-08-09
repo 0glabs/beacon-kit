@@ -51,7 +51,11 @@ ETH_GENESIS=$(resolve_path "./testing/files/eth-genesis.json")
 set -e
 
 # Reinstall daemon
-make build
+if [[ $RUN_MODE == "debug" ]]; then
+  COSMOS_BUILD_OPTIONS=nostrip make build
+else
+  make build
+fi
 
 overwrite="N"
 if [ -d $HOMEDIR ]; then
@@ -79,8 +83,13 @@ if [[ $overwrite == "y" || $overwrite == "Y" ]]; then
 	fi
 fi
 
+BINARY_PATH="./build/bin/beacond"
+if [[ $RUN_MODE == "debug" ]]; then
+  BINARY_PATH="dlv exec ./build/bin/beacond --"
+fi
+
 # Start the node (remove the --pruning=nothing flag if historical queries are not needed)
-BEACON_START_CMD="./build/bin/beacond start --pruning=nothing "$TRACE" \
+BEACON_START_CMD="$BINARY_PATH start --pruning=nothing "$TRACE" \
 --beacon-kit.logger.log-level $LOGLEVEL --api.enabled-unsafe-cors \
 --api.enable --api.swagger --minimum-gas-prices=0.0001abgt \
 --home $HOMEDIR --beacon-kit.engine.jwt-secret-path ${JWT_SECRET_PATH} \
