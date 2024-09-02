@@ -67,9 +67,9 @@ func shuffle(slice []uint32) []uint32 {
 	return slice
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
+// func min(a, b int) int {
+// 	if a < b {
+// 		return a
+// 	}
+// 	return b
+// }

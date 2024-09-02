@@ -16,7 +16,8 @@ import (
 
 const (
 	defaultTransferGasLimit = uint64(21000)
-	defaultTransferVal      = 1000000000
+	initialTransferVal      = 1000000000000000000
+	defaultTransferVal      = 100000000000
 )
 
 type task struct {
@@ -82,25 +83,17 @@ func (g *generatorImlp) WarmUp() error {
 		taskList = append(taskList, &task{
 			fromAccount: faucetAcct,
 			toAccout:    g.accountMap.GetAccount(uint32(i)),
-			value:       defaultTransferVal,
+			value:       initialTransferVal,
 		})
 	}
 
-	limit := min(int(g.accountMap.total), runtime.NumCPU())
-	swg := NewSizedWaitGroup(limit)
 	for i := range taskList {
-		swg.Add()
-		go func(t *task) {
-			defer swg.Done()
-			tx, err := g.generateTransaction(t)
-			if err != nil {
-				println(err.Error())
-				return
-			}
-			g.txPool <- tx
-		}(taskList[i])
+		tx, err := g.generateTransaction(taskList[i])
+		if err != nil {
+			return err
+		}
+		g.txPool <- tx
 	}
-	swg.Wait()
 	return nil
 }
 
@@ -121,6 +114,7 @@ func (g *generatorImlp) generateTransaction(t *task) (*types.Transaction, error)
 	if err != nil {
 		return nil, err
 	}
+
 	return signedTx, nil
 }
 
@@ -135,14 +129,15 @@ func (g *generatorImlp) GenerateGeneralTransfer(numTransfers int) []*types.Trans
 		acctIdxList = shuffle(acctIdxList)
 
 		pairs := make([][2]uint32, 0, g.accountMap.total)
-		used := make(map[uint32]bool)
+		usedFrom := make(map[uint32]bool)
+		usedTo := make(map[uint32]bool)
 
-		for i := 0; i < len(acctIdxList)-1; i++ {
-			for j := i + 1; j < len(acctIdxList); j++ {
-				if acctIdxList[i] != acctIdxList[j] && !used[acctIdxList[i]] && !used[acctIdxList[j]] {
+		for i := 0; i < len(acctIdxList); i++ {
+			for j := 0; j < len(acctIdxList); j++ {
+				if acctIdxList[i] != acctIdxList[j] && !usedFrom[acctIdxList[i]] && !usedTo[acctIdxList[j]] {
 					pairs = append(pairs, [2]uint32{acctIdxList[i], acctIdxList[j]})
-					used[acctIdxList[i]] = true
-					used[acctIdxList[j]] = true
+					usedFrom[acctIdxList[i]] = true
+					usedTo[acctIdxList[j]] = true
 					break
 				}
 			}

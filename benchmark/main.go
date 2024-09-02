@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"time"
 
 	"github.com/berachain/beacon-kit/benchmark/producer"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	accountCount     = 200
+	accountCount     = 20000
 	workloadPreBatch = accountCount
 )
 
@@ -36,12 +37,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to warm up the generator: %v", err)
 	}
+	// complete the transfer from facuet to new generated accounts
+	sendWorkload(client, getWorkload(workloadPreBatch))
+	// sleep to wait the initial transfer to be completed
+	time.Sleep(20 * time.Second)
 
 	startBlock, err := client.BlockByNumber(context.Background(), nil)
 	if err != nil {
 		log.Fatalf("Failed to get the start block: %v", err)
 	}
 
+	sendWorkload(client, getWorkload(workloadPreBatch))
 	sendWorkload(client, getWorkload(workloadPreBatch))
 
 	endBlock, err := client.BlockByNumber(context.Background(), nil)
