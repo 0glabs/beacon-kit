@@ -29,7 +29,6 @@ func NewAccount(index uint32) Account {
 }
 
 func CreateFaucetAccount(privateKey string) *Account {
-	// get private key from genesis file
 	pks := strings.TrimPrefix(privateKey, "0x")
 	pkBytes, _ := hex.DecodeString(pks)
 	pk := loadPrivateKey(pkBytes)
