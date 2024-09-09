@@ -1,20 +1,22 @@
 package producer
 
+import "math/big"
+
 type AccountMap struct {
 	total      uint32
 	accounts   []Account
 	faucetAcct *Account
 }
 
-func NewAccountMap(total uint32, faucetPrivateKey string) *AccountMap {
+func NewAccountMap(total uint32, faucetPrivateKey string, chainId *big.Int) *AccountMap {
 	am := &AccountMap{
 		total:      total,
 		accounts:   make([]Account, 0, total),
-		faucetAcct: CreateFaucetAccount(faucetPrivateKey),
+		faucetAcct: CreateFaucetAccount(faucetPrivateKey, chainId),
 	}
 
 	for i := uint32(0); i < total; i++ {
-		am.accounts = append(am.accounts, NewAccount(i))
+		am.accounts = append(am.accounts, NewAccount(i, chainId))
 	}
 
 	return am

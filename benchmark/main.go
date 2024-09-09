@@ -28,7 +28,8 @@ func main() {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 
-	generator, err = producer.NewGenerator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
+	generator, err = producer.NewTransferGenerator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
+	// generator, err = producer.NewErc20Generator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
 	if err != nil {
 		log.Fatalf("Failed to create the generator: %v", err)
 	}
@@ -108,5 +109,5 @@ func sendWorkload(client *ethclient.Client, workload [](*types.Transaction)) {
 
 func getWorkload(n int) [](*types.Transaction) {
 	// load all to-be-sent transactions
-	return generator.GenerateGeneralTransfer(n)
+	return generator.GenerateTransfer(n)
 }

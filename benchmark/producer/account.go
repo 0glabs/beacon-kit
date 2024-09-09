@@ -2,6 +2,7 @@ package producer
 
 import (
 	"encoding/hex"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -10,13 +11,14 @@ import (
 type Account struct {
 	Index      uint32
 	Nonce      uint64
+	ChainId    *big.Int
 	Address    string
 	Checksum   string
 	PrivateKey []byte
 	IsFaucet   bool
 }
 
-func NewAccount(index uint32) Account {
+func NewAccount(index uint32, ChainId *big.Int) Account {
 	pk, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(pk.PublicKey).Hex()
 	return Account{
@@ -25,10 +27,11 @@ func NewAccount(index uint32) Account {
 		Address:    addr,
 		Checksum:   toChecksumAddress(addr),
 		PrivateKey: crypto.FromECDSA(pk),
+		ChainId:    ChainId,
 	}
 }
 
-func CreateFaucetAccount(privateKey string) *Account {
+func CreateFaucetAccount(privateKey string, ChainId *big.Int) *Account {
 	pks := strings.TrimPrefix(privateKey, "0x")
 	pkBytes, _ := hex.DecodeString(pks)
 	pk := loadPrivateKey(pkBytes)
@@ -40,6 +43,7 @@ func CreateFaucetAccount(privateKey string) *Account {
 		Address:    addr,
 		Checksum:   toChecksumAddress(addr),
 		PrivateKey: crypto.FromECDSA(pk),
+		ChainId:    ChainId,
 	}
 }
 
