@@ -11,8 +11,7 @@ import (
 )
 
 func deployContractErc20Test(evmClient *ethclient.Client, account *Account) (*bind.TransactOpts, *contract.Erc20test, error) {
-	privateKey := loadPrivateKey(account.PrivateKey)
-	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, account.ChainId)
+	auth, err := bind.NewKeyedTransactorWithChainID(account.PrivateKey, account.ChainId)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to create transactor with private key %s", account.PrivateKey)
 	}

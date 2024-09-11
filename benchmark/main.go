@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"time"
 
 	"github.com/berachain/beacon-kit/benchmark/producer"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,42 +13,93 @@ import (
 )
 
 const (
-	accountCount     = 20000
+	accountCount     = 5
+	senderCount      = 4
 	workloadPreBatch = accountCount
+	txCount          = 100
 )
 
-var generator producer.Generator
+type Sender struct {
+	index     int
+	generator producer.Generator
+	client    *ethclient.Client
+}
+
+func (s *Sender) Send(txCount int) {
+	ch := s.generator.GenerateTransfer()
+	ctx := context.Background()
+	cnt := 0
+	for t := range ch {
+		err := s.client.SendTransaction(ctx, t)
+		if err != nil {
+			log.Fatal("[", s.index, "] Failed to send transactions ", t.Hash().String(), " error: ", err.Error())
+		} else {
+			println("[", s.index, "] Sent transaction", t.Hash().String())
+		}
+		cnt++
+		if cnt == txCount {
+			break
+		}
+	}
+}
+
+var senders []*Sender
 
 func main() {
 	rpcUrl, _ := getParameters()
+
+	senders = make([]*Sender, 0, senderCount)
+	for i := range senderCount {
+		client, err := ethclient.Dial(rpcUrl)
+		if err != nil {
+			log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+		}
+
+		generator, err := producer.NewTransferGenerator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
+		// generator, err = producer.NewErc20Generator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
+		if err != nil {
+			log.Fatalf("[%d]Failed to create the generator: %v", i, err.Error())
+		}
+
+		senders = append(senders, &Sender{i, generator, client})
+
+		err = generator.WarmUp()
+		if err != nil {
+			log.Fatalf("[%d]Failed to warm up the generator: %v", i, err.Error())
+		}
+
+		tx := make([](*types.Transaction), 0, accountCount)
+		c := generator.GenerateTransfer()
+
+		for t := range c {
+			tx = append(tx, t)
+			if len(tx) == accountCount {
+				break
+			}
+		}
+		sendWorkload(client, tx)
+	}
 
 	client, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 
-	generator, err = producer.NewTransferGenerator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
-	// generator, err = producer.NewErc20Generator(accountCount, "0xfffdbb37105441e14b0ee6330d855d8504ff39e705c3afa8f859ac9865f99306", client)
-	if err != nil {
-		log.Fatalf("Failed to create the generator: %v", err)
-	}
-
-	err = generator.WarmUp()
-	if err != nil {
-		log.Fatalf("Failed to warm up the generator: %v", err)
-	}
-	// complete the transfer from facuet to new generated accounts
-	sendWorkload(client, getWorkload(workloadPreBatch))
-	// sleep to wait the initial transfer to be completed
-	time.Sleep(20 * time.Second)
-
 	startBlock, err := client.BlockByNumber(context.Background(), nil)
 	if err != nil {
 		log.Fatalf("Failed to get the start block: %v", err)
 	}
 
-	sendWorkload(client, getWorkload(workloadPreBatch))
-	sendWorkload(client, getWorkload(workloadPreBatch))
+	swg := producer.NewSizedWaitGroup(senderCount)
+	for i := range senders {
+		swg.Add()
+		go func(s *Sender) {
+			defer swg.Done()
+			s.Send(txCount)
+		}(senders[i])
+	}
+
+	swg.Wait()
 
 	endBlock, err := client.BlockByNumber(context.Background(), nil)
 	if err != nil {
@@ -102,12 +152,9 @@ func sendWorkload(client *ethclient.Client, workload [](*types.Transaction)) {
 	for _, tx := range workload {
 		err := client.SendTransaction(context.Background(), tx)
 		if err != nil {
-			log.Fatal("Failed to send transactions")
+			log.Fatal("Failed to send transactions ", tx.Hash().String(), " error: ", err.Error())
+		} else {
+			println("Sent transaction", tx.Hash().String())
 		}
 	}
-}
-
-func getWorkload(n int) [](*types.Transaction) {
-	// load all to-be-sent transactions
-	return generator.GenerateTransfer(n)
 }

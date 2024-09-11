@@ -12,22 +12,16 @@ import (
 	"github.com/berachain/beacon-kit/benchmark/producer/contract"
 	"github.com/berachain/beacon-kit/mod/errors"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
-
-type erc20Task struct {
-	fromAccount *Account
-	toAccout    *Account
-	value       int64
-}
 
 type erc20GeneratorImlp struct {
 	client     *ethclient.Client
 	chainId    *big.Int
 	signer     types.Signer
 	accountMap *AccountMap
+	taskPool   chan *task
 	txPool     chan *types.Transaction
 	poolSize   uint32
 	auth       *bind.TransactOpts
@@ -40,38 +34,25 @@ func NewErc20Generator(numAccounts uint32, faucetPrivateKey string, ethClient *e
 		return nil, err
 	}
 
+	am, err := NewAccountMap(ethClient, numAccounts, faucetPrivateKey, chainID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &erc20GeneratorImlp{
 		client:     ethClient,
 		chainId:    chainID,
 		signer:     types.NewEIP155Signer(chainID),
-		accountMap: NewAccountMap(numAccounts, faucetPrivateKey, chainID),
+		accountMap: am,
 		poolSize:   numAccounts,
+		taskPool:   make(chan *task, 100),
 		txPool:     make(chan *types.Transaction, numAccounts),
 	}, nil
 }
 
 func (g *erc20GeneratorImlp) WarmUp() error {
 	// make transfer from faucet account to other accounts
-	taskList := make([]*erc20Task, 0, g.accountMap.total)
-
-	ctx := context.Background()
-	faucetAcct := g.accountMap.GetFaucetAccount()
-	{
-		nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(faucetAcct.Address))
-		if err != nil {
-			return errors.Wrap(err, "failed to get pending nonce")
-		}
-		faucetAcct.Nonce = nonce
-	}
-
-	for i := 0; i < int(g.accountMap.total); i++ {
-		thisAccount := g.accountMap.GetAccount(uint32(i))
-		nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(thisAccount.Address))
-		if err != nil {
-			return errors.Wrap(err, "failed to get pending nonce")
-		}
-		thisAccount.Nonce = nonce
-	}
+	taskList := make([]*task, 0, g.accountMap.total)
 
 	auth, instance, err := deployContractErc20Test(g.client, g.accountMap.GetFaucetAccount())
 	if err != nil {
@@ -81,11 +62,15 @@ func (g *erc20GeneratorImlp) WarmUp() error {
 	g.auth = auth
 	g.instance = instance
 
+	base := big.NewInt(initialTransferVal)
+	m := big.NewInt(10000)
+	value := base.Mul(base, m)
+
 	for i := 0; i < int(g.accountMap.total); i++ {
-		taskList = append(taskList, &erc20Task{
-			fromAccount: faucetAcct,
+		taskList = append(taskList, &task{
+			fromAccount: g.accountMap.faucetAcct,
 			toAccout:    g.accountMap.GetAccount(uint32(i)),
-			value:       initialTransferVal,
+			value:       value,
 		})
 	}
 
@@ -99,63 +84,48 @@ func (g *erc20GeneratorImlp) WarmUp() error {
 	return nil
 }
 
-func (g *erc20GeneratorImlp) generateTransaction(t *erc20Task) (*types.Transaction, error) {
+func (g *erc20GeneratorImlp) generateTransaction(t *task) (*types.Transaction, error) {
 	nonce := t.fromAccount.GetAndIncrementNonce()
 
 	g.auth.Nonce = big.NewInt(int64(nonce))
 
-	tx, err := g.instance.Transfer(g.auth, common.HexToAddress(t.toAccout.Address), big.NewInt(t.value))
+	tx, err := g.instance.Transfer(t.fromAccount.Signer.Auth, t.toAccout.Address, t.value)
 	if err != nil {
 		return nil, err
 	}
 
-	signedTx, err := types.SignTx(tx, g.signer, loadPrivateKey(t.fromAccount.PrivateKey))
-	if err != nil {
-		return nil, err
+	t.fromAccount.ReqChan <- &TxSignRequest{
+		Tx: tx,
 	}
 
-	return signedTx, nil
+	res := <-t.fromAccount.ResChan
+
+	return res.SignedTx, nil
 }
 
-func (g *erc20GeneratorImlp) GenerateTransfer(numTransfers int) []*types.Transaction {
+func (g *erc20GeneratorImlp) GenerateTransfer() <-chan *types.Transaction {
 	go func() {
-		pairs := make([][2]*Account, 0, g.accountMap.total)
-
-		for i := uint32(0); i < g.accountMap.total; i++ {
-			pairs = append(pairs, [2]*Account{g.accountMap.GetFaucetAccount(), g.accountMap.GetAccount(i)})
+		for {
+			for i := uint32(0); i < g.accountMap.total; i++ {
+				g.taskPool <- &task{
+					fromAccount: g.accountMap.GetFaucetAccount(),
+					toAccout:    g.accountMap.GetAccount(i),
+					value:       big.NewInt(defaultTransferVal),
+				}
+			}
 		}
-
-		g.generateTransfer(pairs, defaultTransferVal)
 	}()
 
-	ret := make([]*types.Transaction, 0, numTransfers)
-
-	for tx := range g.txPool {
-		ret = append(ret, tx)
-		if len(ret) == numTransfers {
-			break
+	go func() {
+		for {
+			t := <-g.taskPool
+			tx, err := g.generateTransaction(t)
+			if err != nil {
+				log.Fatal("generate transaction error: ", err.Error())
+			}
+			g.txPool <- tx
 		}
-	}
+	}()
 
-	return ret
-}
-
-func (g *erc20GeneratorImlp) generateTransfer(paired [][2]*Account, value int64) {
-	taskList := make([]*erc20Task, 0, len(paired))
-	for i := 0; i < len(paired); i++ {
-		taskList = append(taskList, &erc20Task{
-			fromAccount: paired[i][0],
-			toAccout:    paired[i][1],
-			value:       value,
-		})
-	}
-
-	for i := range taskList {
-		tx, err := g.generateTransaction(taskList[i])
-		if err != nil {
-			log.Fatalf("Failed to generate transactions: %v", err)
-			return
-		}
-		g.txPool <- tx
-	}
+	return g.txPool
 }

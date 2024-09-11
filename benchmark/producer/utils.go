@@ -2,11 +2,15 @@ package producer
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"log"
+	"math/big"
 	"strings"
 	"time"
 
 	"crypto/ecdsa"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/exp/rand"
@@ -73,3 +77,31 @@ func shuffle(slice []uint32) []uint32 {
 // 	}
 // 	return b
 // }
+
+type TransactionOutput struct {
+	Nonce    uint64   `json:"nonce"`
+	To       string   `json:"to"`
+	Value    *big.Int `json:"value"`
+	GasLimit uint64   `json:"gas_limit"`
+	GasPrice *big.Int `json:"gas_price"`
+	Data     []byte   `json:"data"`
+}
+
+func dumpTx(tx *types.Transaction) string {
+	txOutput := TransactionOutput{
+		Nonce:    tx.Nonce(),
+		To:       tx.To().Hex(),
+		Value:    tx.Value(),
+		GasLimit: tx.Gas(),
+		GasPrice: tx.GasPrice(),
+		Data:     tx.Data(),
+	}
+
+	// 将结构体序列化为 JSON
+	jsonData, err := json.MarshalIndent(txOutput, "", "  ")
+	if err != nil {
+		log.Fatalf("Failed to marshal transaction to JSON: %v", err)
+	}
+
+	return string(jsonData)
+}
