@@ -48,14 +48,11 @@ func NewTransferGenerator(numAccounts uint32, faucetPrivateKey string, ethClient
 func (g *transferGeneratorImlp) WarmUp() error {
 	// make transfer from faucet account to other accounts
 	taskList := make([]*task, 0, g.accountMap.total)
-	base := big.NewInt(initialTransferVal)
-	m := big.NewInt(1)
-	value := base.Mul(base, m)
 	for i := 0; i < int(g.accountMap.total); i++ {
 		taskList = append(taskList, &task{
 			fromAccount: g.accountMap.faucetAcct,
 			toAccout:    g.accountMap.GetAccount(uint32(i)),
-			value:       value,
+			value:       toBigInt(initialTransferVal),
 		})
 	}
 
@@ -83,7 +80,8 @@ func (g *transferGeneratorImlp) generateTransaction(t *task) (*types.Transaction
 	// tx := types.NewTransaction(nonce, t.toAccout.Address, t.value, gasLimit, big.NewInt(0), nil)
 	tx := types.NewTransaction(nonce, t.toAccout.Address, t.value, gasLimit, gasPrice, nil)
 	t.fromAccount.ReqChan <- &TxSignRequest{
-		Tx: tx,
+		Nonce: nonce,
+		Tx:    tx,
 	}
 
 	res := <-t.fromAccount.ResChan
@@ -114,7 +112,7 @@ func (g *transferGeneratorImlp) GenerateTransfer() <-chan *types.Transaction {
 						g.taskPool <- &task{
 							fromAccount: g.accountMap.GetAccount(acctIdxList[i]),
 							toAccout:    g.accountMap.GetAccount(acctIdxList[j]),
-							value:       big.NewInt(defaultTransferVal),
+							value:       toBigInt(defaultTransferVal),
 						}
 						break
 					}

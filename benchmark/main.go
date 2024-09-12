@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"time"
 
 	"github.com/berachain/beacon-kit/benchmark/producer"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,10 +14,10 @@ import (
 )
 
 const (
-	accountCount     = 5
+	accountCount     = 200
 	senderCount      = 4
 	workloadPreBatch = accountCount
-	txCount          = 100
+	txCount          = 100000
 )
 
 type Sender struct {
@@ -79,6 +80,10 @@ func main() {
 		}
 		sendWorkload(client, tx)
 	}
+
+	time.Sleep(30 * time.Second)
+
+	println("ready!!!")
 
 	client, err := ethclient.Dial(rpcUrl)
 	if err != nil {

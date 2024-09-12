@@ -3,6 +3,7 @@ package producer
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/shopspring/decimal"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/exp/rand"
 )
@@ -104,4 +106,33 @@ func dumpTx(tx *types.Transaction) string {
 	}
 
 	return string(jsonData)
+}
+
+func toBigInt(amount any) *big.Int {
+	if amount == nil {
+		return big.NewInt(0)
+	}
+	var val *big.Int
+	switch amount.(type) {
+	case int:
+		val = big.NewInt(int64(amount.(int)))
+	case int32:
+		val = big.NewInt(int64(amount.(int32)))
+	case int64:
+		val = big.NewInt(amount.(int64))
+	case string:
+		var ok bool
+		val, ok = new(big.Int).SetString(amount.(string), 0)
+		if !ok {
+			panic(fmt.Sprintf("invalid amount string: %s", amount.(string)))
+		}
+	case *big.Int:
+		val = amount.(*big.Int)
+	case float64:
+		val = decimal.NewFromFloat(amount.(float64)).BigInt()
+	default:
+		panic(fmt.Sprintf("invalid amount type: %T", amount))
+	}
+
+	return val
 }

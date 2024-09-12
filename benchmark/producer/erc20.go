@@ -62,15 +62,11 @@ func (g *erc20GeneratorImlp) WarmUp() error {
 	g.auth = auth
 	g.instance = instance
 
-	base := big.NewInt(initialTransferVal)
-	m := big.NewInt(10000)
-	value := base.Mul(base, m)
-
 	for i := 0; i < int(g.accountMap.total); i++ {
 		taskList = append(taskList, &task{
 			fromAccount: g.accountMap.faucetAcct,
 			toAccout:    g.accountMap.GetAccount(uint32(i)),
-			value:       value,
+			value:       toBigInt(initialTransferVal),
 		})
 	}
 
@@ -110,7 +106,7 @@ func (g *erc20GeneratorImlp) GenerateTransfer() <-chan *types.Transaction {
 				g.taskPool <- &task{
 					fromAccount: g.accountMap.GetFaucetAccount(),
 					toAccout:    g.accountMap.GetAccount(i),
-					value:       big.NewInt(defaultTransferVal),
+					value:       toBigInt(defaultTransferVal),
 				}
 			}
 		}

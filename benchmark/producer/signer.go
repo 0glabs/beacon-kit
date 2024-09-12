@@ -14,8 +14,9 @@ import (
 )
 
 type TxSignRequest struct {
-	Tx   *types.Transaction
-	Data interface{}
+	Nonce uint64
+	Tx    *types.Transaction
+	Data  interface{}
 }
 
 type TxSignResponse struct {
@@ -75,7 +76,7 @@ func (s *Signer) Run(requests <-chan *TxSignRequest) <-chan *TxSignResponse {
 					Err:     err,
 				}
 			} else {
-				println(s.signerAddress.Hex()+" -> tx signed: ", signedTx.Hash().String(), dumpTx(req.Tx))
+				println(s.signerAddress.Hex(), " -> [", req.Nonce, "]tx signed: ", signedTx.Hash().String(), dumpTx(req.Tx))
 				responses <- &TxSignResponse{
 					Request:  req,
 					SignedTx: signedTx,
