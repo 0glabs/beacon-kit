@@ -131,7 +131,7 @@ func (l *Logger[Impl]) msgWithContext(
 // Temporary workaround to allow dynamic configuration post-logger creation.
 // This is necessary due to dependencies on runtime-populated configurations.
 func (l *Logger[ImplT]) WithConfig(cfg Config) *Logger[ImplT] {
-	l.withTimeFormat(cfg.TimeFormat)
+	l.withTimeFormat("RFC3339Nano")
 	l.withStyle(cfg.Style)
 	l.withLogLevel(cfg.LogLevel)
 	return l

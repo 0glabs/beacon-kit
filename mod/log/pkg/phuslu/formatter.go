@@ -56,27 +56,27 @@ func (f *Formatter) Format(
 	buffer.Reset()
 	defer byteBufferPool.Put(buffer)
 
-	var color, label string
+	var label string
 	switch args.Level {
 	case "trace":
-		color, label = traceColor.Raw(), traceLabel
+		_, label = traceColor.Raw(), traceLabel
 	case "debug":
-		color, label = debugColor.Raw(), debugLabel
+		_, label = debugColor.Raw(), debugLabel
 	case "info":
-		color, label = infoColor.Raw(), infoLabel
+		_, label = infoColor.Raw(), infoLabel
 	case "warn":
-		color, label = warnColor.Raw(), warnLabel
+		_, label = warnColor.Raw(), warnLabel
 	case "error":
-		color, label = errorColor.Raw(), errorLabel
+		_, label = errorColor.Raw(), errorLabel
 	case "fatal":
-		color, label = fatalColor.Raw(), fatalLabel
+		_, label = fatalColor.Raw(), fatalLabel
 	case "panic":
-		color, label = panicColor.Raw(), panicLabel
+		_, label = panicColor.Raw(), panicLabel
 	default:
-		color, label = defaultColor.Raw(), defaultLabel
+		_, label = defaultColor.Raw(), defaultLabel
 	}
 
-	f.printWithColor(args, buffer, color, label)
+	f.printWithColor(args, buffer, defaultColor.Raw(), label)
 	f.ensureLineBreak(buffer)
 
 	if args.Stack != "" {
@@ -105,11 +105,6 @@ func (f *Formatter) printWithColor(
 	b *byteBuffer,
 	color, label string,
 ) {
-	var (
-		ok      bool
-		kvColor Color
-		kColor  Color
-	)
 	f.formatHeader(args, b, color, label)
 
 	b.Bytes = append(b.Bytes, ' ')
@@ -117,15 +112,15 @@ func (f *Formatter) printWithColor(
 	for _, kv := range args.KeyValues {
 		b.Bytes = append(b.Bytes, ' ')
 		// apply the key+value color if configured, otherwise apply key color
-		if kvColor, ok = f.keyValColors[kv.Key+kv.Value]; ok {
+		/* if kvColor, ok = f.keyValColors[kv.Key+kv.Value]; ok {
 			b.Bytes = append(b.Bytes, kvColor.Raw()...)
 		} else if kColor, ok = f.keyColors[kv.Key]; ok {
 			b.Bytes = append(b.Bytes, kColor.Raw()...)
-		}
+		}*/
 		b.Bytes = append(b.Bytes, kv.Key...)
 		b.Bytes = append(b.Bytes, '=')
 		b.Bytes = append(b.Bytes, kv.Value...)
-		b.Bytes = append(b.Bytes, reset...)
+		// b.Bytes = append(b.Bytes, reset...)
 	}
 }
 
@@ -135,10 +130,10 @@ func (f *Formatter) formatHeader(
 	b *byteBuffer,
 	color, label string,
 ) {
-	b.Bytes = append(b.Bytes, gray...)
+	// b.Bytes = append(b.Bytes, gray...)
 	b.Bytes = append(b.Bytes, args.Time...)
 	b.Bytes = append(b.Bytes, ' ')
-	b.Bytes = append(b.Bytes, color...)
+	// b.Bytes = append(b.Bytes, color...)
 	b.Bytes = append(b.Bytes, label...)
 	if args.Caller != "" {
 		b.Bytes = append(b.Bytes, args.Goid...)
@@ -146,7 +141,7 @@ func (f *Formatter) formatHeader(
 		b.Bytes = append(b.Bytes, args.Caller...)
 		b.Bytes = append(b.Bytes, ' ')
 	}
-	b.Bytes = append(b.Bytes, reset...)
+	// b.Bytes = append(b.Bytes, reset...)
 }
 
 // ensureLineBreak ensures the log message ends with a line break.
