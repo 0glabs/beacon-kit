@@ -87,6 +87,16 @@ type KVStore struct {
 	slashings sdkcollections.Map[uint64, uint64]
 	// totalSlashing stores the total slashing in the vector range.
 	totalSlashing sdkcollections.Item[uint64]
+	// totalSupply stores the total supply of the beacon chain.
+	totalSupply sdkcollections.Item[uint64]
+	// genesisTime stores the genesis time of the beacon chain.
+	genesisTime sdkcollections.Item[uint64]
+	// annualProvisions stores the annual provisions for the beacon chain.
+	annualProvisions sdkcollections.Item[int64]
+	// inflationRate stores the inflation rate for the beacon chain.
+	inflationRate sdkcollections.Item[uint64]
+	// previousBlockTime stores the time of the previous block.
+	previousBlockTime sdkcollections.Item[uint64]
 }
 
 // New creates a new instance of Store.
@@ -223,6 +233,36 @@ func New(kss store.KVStoreService) *KVStore {
 			keys.LatestBeaconBlockHeaderPrefixHumanReadable,
 			encoding.SSZValueCodec[*ctypes.BeaconBlockHeader]{},
 		),
+		totalSupply: sdkcollections.NewItem(
+			schemaBuilder,
+			sdkcollections.NewPrefix([]byte{keys.TotalSupplyPrefix}),
+			keys.TotalSupplyPrefixHumanReadable,
+			sdkcollections.Uint64Value,
+		),
+		genesisTime: sdkcollections.NewItem(
+			schemaBuilder,
+			sdkcollections.NewPrefix([]byte{keys.GenesisTimePrefix}),
+			keys.GenesisTimePrefixHumanReadable,
+			sdkcollections.Uint64Value,
+		),
+		annualProvisions: sdkcollections.NewItem(
+			schemaBuilder,
+			sdkcollections.NewPrefix([]byte{keys.AnnualProvisionsPrefix}),
+			keys.AnnualProvisionsPrefixHumanReadable,
+			sdkcollections.Int64Value,
+		),
+		inflationRate: sdkcollections.NewItem(
+			schemaBuilder,
+			sdkcollections.NewPrefix([]byte{keys.InflationRatePrefix}),
+			keys.InflationRatePrefixHumanReadable,
+			sdkcollections.Uint64Value,
+		),
+		previousBlockTime: sdkcollections.NewItem(
+			schemaBuilder,
+			sdkcollections.NewPrefix([]byte{keys.PreviousBlockTimePrefix}),
+			keys.PreviousBlockTimePrefixHumanReadable,
+			sdkcollections.Uint64Value,
+		),
 	}
 	if _, err := schemaBuilder.Build(); err != nil {
 		panic(fmt.Errorf("failed building KVStore schema: %w", err))
@@ -249,4 +289,44 @@ func (kv *KVStore) WithContext(ctx context.Context) *KVStore {
 	cpy := *kv
 	cpy.ctx = ctx
 	return &cpy
+}
+
+func (kv *KVStore) GetTotalSupply() (uint64, error) {
+	return kv.totalSupply.Get(kv.ctx)
+}
+
+func (kv *KVStore) SetTotalSupply(totalSupply uint64) error {
+	return kv.totalSupply.Set(kv.ctx, totalSupply)
+}
+
+func (kv *KVStore) GetGenesisTime() (uint64, error) {
+	return kv.genesisTime.Get(kv.ctx)
+}
+
+func (kv *KVStore) SetGenesisTime(genesisTime uint64) error {
+	return kv.genesisTime.Set(kv.ctx, genesisTime)
+}
+
+func (kv *KVStore) GetAnnualProvisions() (int64, error) {
+	return kv.annualProvisions.Get(kv.ctx)
+}
+
+func (kv *KVStore) SetAnnualProvisions(annualProvisions int64) error {
+	return kv.annualProvisions.Set(kv.ctx, annualProvisions)
+}
+
+func (kv *KVStore) GetInflationRate() (uint64, error) {
+	return kv.inflationRate.Get(kv.ctx)
+}
+
+func (kv *KVStore) SetInflationRate(inflationRate uint64) error {
+	return kv.inflationRate.Set(kv.ctx, inflationRate)
+}
+
+func (kv *KVStore) GetPreviousBlockTime() (uint64, error) {
+	return kv.previousBlockTime.Get(kv.ctx)
+}
+
+func (kv *KVStore) SetPreviousBlockTime(previousBlockTime uint64) error {
+	return kv.previousBlockTime.Set(kv.ctx, previousBlockTime)
 }

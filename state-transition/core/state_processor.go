@@ -101,6 +101,10 @@ func (sp *StateProcessor[ContextT]) Transition(
 		return nil, err
 	}
 
+	payloadTime := blk.Body.ExecutionPayload.GetTimestamp()
+	st.SetPreviousBlockTime(uint64(payloadTime))
+	st.MaybeUpdateMinter()
+
 	return validatorUpdates, nil
 }
 
