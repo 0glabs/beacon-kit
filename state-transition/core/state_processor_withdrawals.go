@@ -47,8 +47,10 @@ func (sp *StateProcessor[_]) processWithdrawals(
 		payloadWithdrawals = payload.GetWithdrawals()
 	)
 
+	timestamp := payload.GetTimestamp().Unwrap()
+
 	// Get the expected withdrawals.
-	expectedWithdrawals, err := st.ExpectedWithdrawals()
+	expectedWithdrawals, err := st.ExpectedWithdrawals(timestamp)
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func (sp *StateProcessor[_]) processWithdrawals(
 	if len(payloadWithdrawals) == 0 {
 		return ErrZeroWithdrawals
 	}
-	if !payloadWithdrawals[0].Equals(st.EVMInflationWithdrawal()) {
+	if !payloadWithdrawals[0].Equals(st.EVMInflationWithdrawal(timestamp)) {
 		return ErrFirstWithdrawalNotEVMInflation
 	}
 	numWithdrawals := len(expectedWithdrawals)
