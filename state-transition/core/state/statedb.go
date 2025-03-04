@@ -22,6 +22,8 @@ package state
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/berachain/beacon-kit/chain"
 	ctypes "github.com/berachain/beacon-kit/consensus-types/types"
@@ -102,7 +104,7 @@ func (s *StateDB) UpdateSlashingAtIndex(index uint64, amount math.Gwei) error {
 //
 // NOTE: This function is modified from the spec to allow a fixed withdrawal
 // (as the first withdrawal) used for EVM inflation.
-func (s *StateDB) ExpectedWithdrawals() (engineprimitives.Withdrawals, error) {
+func (s *StateDB) ExpectedWithdrawals(timestamp uint64) (engineprimitives.Withdrawals, error) {
 	var (
 		validator         *ctypes.Validator
 		balance           math.Gwei
@@ -112,7 +114,7 @@ func (s *StateDB) ExpectedWithdrawals() (engineprimitives.Withdrawals, error) {
 	)
 
 	// The first withdrawal is fixed to be the EVM inflation withdrawal.
-	withdrawals = append(withdrawals, s.EVMInflationWithdrawal())
+	withdrawals = append(withdrawals, s.EVMInflationWithdrawal(timestamp))
 
 	slot, err := s.GetSlot()
 	if err != nil {
@@ -196,16 +198,139 @@ func (s *StateDB) ExpectedWithdrawals() (engineprimitives.Withdrawals, error) {
 	return withdrawals, nil
 }
 
+const (
+	SecondsPerMinute = 60
+	MinutesPerHour   = 60
+	HoursPerDay      = 24
+	// DaysPerYear is the mean length of the Gregorian calendar year. Note this
+	// value isn't 365 because 97 out of 400 years are leap years. See
+	// https://en.wikipedia.org/wiki/Year
+	DaysPerYear    = 365.2425
+	SecondsPerYear = int64(SecondsPerMinute * MinutesPerHour * HoursPerDay * DaysPerYear) // 31,556,952
+
+	// InitialInflationRate is the inflation rate that the network starts at.
+	// 8% * 10000
+	InitialInflationRate = 800
+	// TargetInflationRate is the inflation rate that the network aims to
+	// stabilize at. In practice, TargetInflationRate acts as a minimum so that
+	// the inflation rate doesn't decrease after reaching it.
+	// 2.5% * 10000
+	TargetInflationRate = 250
+)
+
+// yearsSinceGenesis returns the number of years that have passed between
+// genesis and current (rounded down).
+func yearsSinceGenesis(genesis time.Time, current time.Time) (years int64) {
+	if current.Before(genesis) {
+		return 0
+	}
+	return int64(current.Sub(genesis).Seconds()) / SecondsPerYear
+}
+
+// CalculateInflationRate returns the inflation rate for the current year depending on
+// the current block height in context. The inflation rate is expected to
+// decrease every year according to the schedule specified in the README.
+func (s *StateDB) CalculateInflationRate() uint64 {
+	genesisTime, err := s.GetGenesisTime()
+	if err != nil {
+		panic(err)
+	}
+	blockTime, err := s.GetLatestExecutionPayloadHeader()
+	if err != nil {
+		panic(err)
+	}
+	years := yearsSinceGenesis(time.Unix(int64(genesisTime), 0), time.Unix(int64(blockTime.Timestamp), 0))
+	inflationRate := InitialInflationRate
+	for i := 0; i < int(years); i++ {
+		// DisinflationRate = 0.125
+		inflationRate = inflationRate * 7 / 8
+	}
+	if inflationRate < TargetInflationRate {
+		inflationRate = TargetInflationRate
+	}
+
+	return uint64(inflationRate)
+}
+
+// maybeUpdateMinter updates the inflation rate and annual provisions if the
+// inflation rate has changed. The inflation rate is expected to change once per
+// year at the genesis time anniversary until the TargetInflationRate is
+// reached.
+func (s *StateDB) MaybeUpdateMinter() {
+	newInflationRate := s.CalculateInflationRate()
+
+	annualProvisions, err := s.GetAnnualProvisions()
+	if err != nil {
+		panic(err)
+	}
+	inflationRate, err := s.GetInflationRate()
+	if err != nil {
+		panic(err)
+	}
+	if inflationRate == newInflationRate && annualProvisions != 0 {
+		// The minter's InflationRate and AnnualProvisions already reflect the
+		// values for this year. Exit early because we don't need to update
+		// them. AnnualProvisions must be updated if it is zero (expected at
+		// genesis).
+		return
+	}
+
+	totalSupply, err := s.GetTotalSupply()
+	if err != nil {
+		panic(err)
+	}
+	s.SetInflationRate(newInflationRate)
+	s.SetAnnualProvisions(int64(newInflationRate * totalSupply / 10000))
+	annualProvisions, err = s.GetAnnualProvisions()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("newInflationRate", newInflationRate, "annualProvisions", annualProvisions)
+}
+
+// CalculateBlockProvision returns the total number of coins that should be
+// minted due to inflation for the current block.
+func (s *StateDB) CalculateBlockProvision(current time.Time, previous time.Time) (uint64, error) {
+	if current.Before(previous) {
+		return 0, fmt.Errorf("current time %v cannot be before previous time %v", current, previous)
+	}
+	timeElapsed := current.Unix() - previous.Unix()
+	annualProvisions, err := s.GetAnnualProvisions()
+	if err != nil {
+		panic(err)
+	}
+	blockProvision := timeElapsed * annualProvisions / SecondsPerYear
+	return uint64(blockProvision), nil
+}
+
+// mintBlockProvision mints the block provision for the current block.
+func (s *StateDB) mintBlockProvision(timestamp uint64) uint64 {
+	previousBlockTime, err := s.GetPreviousBlockTime()
+	if err != nil {
+		panic(err)
+	}
+	var toMintCoin uint64 = 0
+	if previousBlockTime > 0 {
+		toMintCoin, err = s.CalculateBlockProvision(time.Unix(int64(timestamp), 0), time.Unix(int64(previousBlockTime), 0))
+		if err != nil {
+			panic(err)
+		}
+	}
+	return uint64(toMintCoin)
+}
+
 // EVMInflationWithdrawal returns the withdrawal used for EVM balance inflation.
 //
 // NOTE: The withdrawal index and validator index are both set to max(uint64) as
 // they are not used during processing.
-func (s *StateDB) EVMInflationWithdrawal() *engineprimitives.Withdrawal {
+func (s *StateDB) EVMInflationWithdrawal(timestamp uint64) *engineprimitives.Withdrawal {
+	toMint := s.mintBlockProvision(timestamp)
+	fmt.Println("toMint", toMint)
 	return engineprimitives.NewWithdrawal(
 		EVMInflationWithdrawalIndex,
 		EVMInflationWithdrawalValidatorIndex,
 		s.cs.EVMInflationAddress(),
-		math.Gwei(s.cs.EVMInflationPerBlock()),
+		math.Gwei(toMint),
 	)
 }
 

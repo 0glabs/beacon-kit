@@ -22,6 +22,7 @@ package core
 
 import (
 	"fmt"
+	"time"
 
 	ctypes "github.com/berachain/beacon-kit/consensus-types/types"
 	"github.com/berachain/beacon-kit/primitives/common"
@@ -62,6 +63,14 @@ func (sp *StateProcessor[_]) InitializePreminedBeaconStateFromEth1(
 	if err := st.SetEth1Data(eth1Data); err != nil {
 		return nil, err
 	}
+
+	// TODO: get total supply from eth1
+	st.SetTotalSupply(100000000000000)
+	genesisTime := time.Now().Unix()
+	st.SetGenesisTime(uint64(genesisTime))
+	st.SetAnnualProvisions(0)
+	st.SetInflationRate(0)
+	st.SetPreviousBlockTime(uint64(genesisTime))
 
 	if version.ToUint32(genesisVersion) != version.Deneb {
 		return nil, fmt.Errorf("fork version not supported: %s", genesisVersion)

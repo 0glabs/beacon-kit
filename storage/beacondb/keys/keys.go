@@ -44,6 +44,11 @@ const (
 	NextWithdrawalIndexPrefix
 	NextWithdrawalValidatorIndexPrefix
 	ForkPrefix
+	TotalSupplyPrefix
+	GenesisTimePrefix
+	AnnualProvisionsPrefix
+	InflationRatePrefix
+	PreviousBlockTimePrefix
 )
 
 const (
@@ -70,4 +75,9 @@ const (
 	NextWithdrawalIndexPrefixHumanReadable              = "NextWithdrawalIndexPrefix"
 	NextWithdrawalValidatorIndexPrefixHumanReadable     = "NextWithdrawalValidatorIndexPrefix"
 	ForkPrefixHumanReadable                             = "ForkPrefix"
+	TotalSupplyPrefixHumanReadable                      = "TotalSupplyPrefix"
+	GenesisTimePrefixHumanReadable                      = "GenesisTimePrefix"
+	AnnualProvisionsPrefixHumanReadable                 = "AnnualProvisionsPrefix"
+	InflationRatePrefixHumanReadable                    = "InflationRatePrefix"
+	PreviousBlockTimePrefixHumanReadable                = "PreviousBlockTimePrefix"
 )
