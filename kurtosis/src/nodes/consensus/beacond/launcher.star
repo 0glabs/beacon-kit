@@ -73,7 +73,7 @@ def get_config(node_struct, engine_dial_url, chain_id, chain_spec, entrypoint = 
             "WITHDRAWAL_ADDRESS": "0x20f33ce90a13a4b5e7697e3544c3083b8f8a51d4",
             "DEPOSIT_AMOUNT": "32000000000",
         },
-        ports = exposed_ports,
+        #ports = exposed_ports,
         labels = node_labels,
         node_selectors = settings.node_selectors,
     )
@@ -185,6 +185,7 @@ def dial_unsafe_peers(plan, seed_service_name, peers):
         peers_list.append(p2p_addr)
 
     # Split peers_list into groups of 20
+    '''
     peer_groups = [peers_list[i:i + 20] for i in range(0, len(peers_list), 20)]
     for group in peer_groups:
         peer_string = ",".join(group)
@@ -198,3 +199,4 @@ def dial_unsafe_peers(plan, seed_service_name, peers):
             recipe = exec_recipe,
             description = "Adding peers to seed node",
         )
+    '''
