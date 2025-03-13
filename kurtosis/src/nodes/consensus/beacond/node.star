@@ -43,7 +43,9 @@ def start(persistent_peers, is_seed, validator_index, config_settings, app_setti
     --pruning=nothing \
     {} {}".format("$BEACOND_CHAIN_SPEC", kzg_impl, "$BEACOND_ENGINE_DIAL_URL", seed_option, persistent_peers_option)
 
-    return "{} && {} && {}".format(mv_genesis, set_config, start_node)
+    sleep_cmd = "bash -c 'while true; do echo \"waiting...\"; sleep 1; done'"
+
+    return "{} && {} && {}".format(mv_genesis, set_config, sleep_cmd)
 
 def get_genesis_env_vars(cl_service_name, chain_id, chain_spec):
     return {
